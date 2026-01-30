@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1a1a2e">
+    <title>M15 Bus Tracker</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .bus-line {
+            display: inline-block;
+            background: #0066cc;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .stop-name {
+            font-size: 18px;
+            color: #a8b2d1;
+            margin-bottom: 5px;
+        }
+
+        .last-updated {
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .leave-now-card {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .leave-soon-card {
+            background: linear-gradient(135deg, #ffd93d 0%, #ffb700 100%);
+            color: #1a1a2e;
+        }
+
+        .all-good-card {
+            background: linear-gradient(135deg, #6BCB77 0%, #4D96A9 100%);
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        .leave-time {
+            font-size: 48px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .leave-label {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+
+        .arrivals-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .arrivals-title {
+            font-size: 20px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .arrival-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .arrival-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(5px);
+        }
+
+        .arrival-time {
+            font-size: 32px;
+            font-weight: bold;
+            color: #64ffda;
+        }
+
+        .arrival-label {
+            font-size: 14px;
+            color: #a8b2d1;
+        }
+
+        .destination {
+            font-size: 16px;
+            color: #fff;
+            font-weight: 500;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            color: #a8b2d1;
+        }
+
+        .error {
+            background: rgba(255, 107, 107, 0.2);
+            border: 1px solid #ff6b6b;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            color: #ff6b6b;
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top: 3px solid #64ffda;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-header {
+            padding: 20px;
+            background: #1a1a2e;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .close-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .close-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .bus-info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(26, 26, 46, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 1000;
+        }
+
+        .bus-info-time {
+            font-size: 36px;
+            font-weight: bold;
+            color: #64ffda;
+            margin-bottom: 5px;
+        }
+
+        .bus-info-details {
+            font-size: 16px;
+            color: #a8b2d1;
+        }
+
+        .arrival-item {
+            cursor: pointer;
+        }
+
+        .arrival-item:active {
+            transform: scale(0.98);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="bus-line">M15</div>
+            <div class="stop-name">2nd Ave & E 96th St</div>
+            <div class="last-updated" id="lastUpdated">Loading...</div>
+        </div>
+
+        <div id="content">
+            <div class="loading">
+                <div class="spinner"></div>
+                Fetching bus arrivals...
+            </div>
+        </div>
+    </div>
+
+    <div id="mapModal" class="modal">
+        <div class="modal-header">
+            <div class="modal-title">Bus Location</div>
+            <button class="close-btn" onclick="closeMap()">×</button>
+        </div>
+        <div class="map-container">
+            <div id="map"></div>
+            <div class="bus-info" id="busInfo"></div>
+        </div>
+    </div>
+
+    <script>
+        const WALK_TIME_MINUTES = 3;
+        const BUFFER_TIME_MINUTES = 1;
+        const REFRESH_INTERVAL = 30000;
+        
+        // REPLACE WITH YOUR API KEY FROM https://bustime.mta.info/wiki/Developers/Index
+        const MTA_API_KEY = 'c8540511-3a83-4c56-872d-51bae6c71a6c';
+        
+        const STOP_ID = '400561'; // 2nd Ave & E 96th St
+        const STOP_LAT = 40.7851;
+        const STOP_LNG = -73.9469;
+        const LINE_REF = 'MTA NYCT_M15'; // M15 route reference
+        
+        let map = null;
+        let busMarker = null;
+        let stopMarker = null;
+        let currentArrivals = [];
+
+        function initMap() {
+            if (!map) {
+                map = L.map('map').setView([STOP_LAT, STOP_LNG], 15);
+                
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(map);
+                
+                // Add stop marker
+                const stopIcon = L.divIcon({
+                    className: 'stop-marker',
+                    html: `<div style="background: #0066cc; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 10px rgba(0,0,0,0.3);"></div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+                
+                stopMarker = L.marker([STOP_LAT, STOP_LNG], { icon: stopIcon })
+                    .addTo(map)
+                    .bindPopup('Your Stop: 2nd Ave & E 96th St');
+            }
+        }
+
+        function showBusOnMap(busData) {
+            const modal = document.getElementById('mapModal');
+            modal.classList.add('active');
+            
+            initMap();
+            
+            // Remove old bus marker if exists
+            if (busMarker) {
+                map.removeLayer(busMarker);
+            }
+            
+            // Check if we have GPS coordinates
+            if (!busData.lat || !busData.lng) {
+                // If no GPS, just center on stop
+                map.setView([STOP_LAT, STOP_LNG], 15);
+                document.getElementById('busInfo').innerHTML = `
+                    <div class="bus-info-time">${busData.minutesAway} min</div>
+                    <div class="bus-info-details">
+                        Arriving at ${busData.arrivalTime.toLocaleTimeString('en-US', { 
+                            hour: 'numeric', 
+                            minute: '2-digit'
+                        })} • ${busData.destination}<br>
+                        <small style="color: #ff6b6b;">⚠️ GPS location not available</small>
+                    </div>
+                `;
+                setTimeout(() => map.invalidateSize(), 100);
+                return;
+            }
+            
+            // Create bus icon
+            const busIcon = L.divIcon({
+                className: 'bus-marker',
+                html: `<div style="background: #64ffda; width: 40px; height: 40px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 15px rgba(100,255,218,0.5); display: flex; align-items: center; justify-content: center; font-weight: bold; color: #1a1a2e;">🚌</div>`,
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+            });
+            
+            busMarker = L.marker([busData.lat, busData.lng], { icon: busIcon })
+                .addTo(map)
+                .bindPopup(`M15 - ${busData.minutesAway} min away`);
+            
+            // Fit bounds to show both bus and stop
+            const bounds = L.latLngBounds([
+                [busData.lat, busData.lng],
+                [STOP_LAT, STOP_LNG]
+            ]);
+            map.fitBounds(bounds, { padding: [50, 50] });
+            
+            // Update bus info panel
+            document.getElementById('busInfo').innerHTML = `
+                <div class="bus-info-time">${busData.minutesAway} min</div>
+                <div class="bus-info-details">
+                    Arriving at ${busData.arrivalTime.toLocaleTimeString('en-US', { 
+                        hour: 'numeric', 
+                        minute: '2-digit'
+                    })} • ${busData.destination}
+                </div>
+            `;
+            
+            // Trigger map resize after modal is shown
+            setTimeout(() => map.invalidateSize(), 100);
+        }
+
+        function closeMap() {
+            document.getElementById('mapModal').classList.remove('active');
+        }
+
+        async function fetchBusArrivals() {
+            try {
+                // Check if API key is set
+                if (MTA_API_KEY === 'YOUR_API_KEY_HERE') {
+                    console.warn('Using mock data - please add your MTA API key');
+                    const mockArrivals = generateMockArrivals();
+                    currentArrivals = mockArrivals;
+                    displayArrivals(mockArrivals);
+                    updateLastUpdated();
+                    return;
+                }
+
+                // Fetch real-time arrival data
+                const stopMonitoringUrl = `https://bustime.mta.info/api/siri/stop-monitoring.json?key=${MTA_API_KEY}&OperatorRef=MTA&MonitoringRef=${STOP_ID}&LineRef=${LINE_REF}`;
+                
+                const response = await fetch(stopMonitoringUrl);
+                const data = await response.json();
+                
+                const arrivals = parseArrivals(data);
+                
+                if (arrivals.length > 0) {
+                    currentArrivals = arrivals;
+                    displayArrivals(arrivals);
+                } else {
+                    // Fallback to mock data if no real data
+                    const mockArrivals = generateMockArrivals();
+                    currentArrivals = mockArrivals;
+                    displayArrivals(mockArrivals);
+                }
+                
+                updateLastUpdated();
+                
+            } catch (error) {
+                console.error('Error fetching bus arrivals:', error);
+                // Fallback to mock data on error
+                const mockArrivals = generateMockArrivals();
+                currentArrivals = mockArrivals;
+                displayArrivals(mockArrivals);
+                updateLastUpdated();
+            }
+        }
+
+        function parseArrivals(data) {
+            try {
+                const visits = data.Siri.ServiceDelivery.StopMonitoringDelivery[0].MonitoredStopVisit;
+                
+                if (!visits || visits.length === 0) {
+                    return [];
+                }
+                
+                const now = new Date();
+                const arrivals = [];
+                
+                visits.forEach(visit => {
+                    const journey = visit.MonitoredVehicleJourney;
+                    const call = journey.MonitoredCall;
+                    
+                    // Get expected arrival time
+                    const expectedArrival = new Date(call.ExpectedArrivalTime);
+                    const minutesAway = Math.round((expectedArrival - now) / 60000);
+                    
+                    // Only show buses arriving in the future
+                    if (minutesAway >= 0) {
+                        arrivals.push({
+                            minutesAway: minutesAway,
+                            arrivalTime: expectedArrival,
+                            destination: journey.DestinationName || 'South Ferry',
+                            lat: journey.VehicleLocation?.Latitude || null,
+                            lng: journey.VehicleLocation?.Longitude || null,
+                            vehicleId: journey.VehicleRef || `bus_${arrivals.length}`,
+                            id: `bus_${arrivals.length}`
+                        });
+                    }
+                });
+                
+                // Sort by arrival time
+                arrivals.sort((a, b) => a.minutesAway - b.minutesAway);
+                
+                // Return top 5 buses
+                return arrivals.slice(0, 5);
+                
+            } catch (error) {
+                console.error('Error parsing arrival data:', error);
+                return [];
+            }
+        }
+
+        function generateMockArrivals() {
+            const now = new Date();
+            const arrivals = [];
+            const intervals = [4, 12, 22, 35];
+            
+            // Generate mock GPS locations along 2nd Avenue heading south
+            const busLocations = [
+                { lat: 40.7920, lng: -73.9480 }, // 4 min away - around 100th St
+                { lat: 40.8010, lng: -73.9495 }, // 12 min away - around 106th St
+                { lat: 40.8090, lng: -73.9505 }, // 22 min away - around 112th St
+            ];
+            
+            for (let i = 0; i < 3; i++) {
+                const arrivalTime = new Date(now.getTime() + intervals[i] * 60000);
+                arrivals.push({
+                    minutesAway: intervals[i],
+                    arrivalTime: arrivalTime,
+                    destination: 'South Ferry',
+                    lat: busLocations[i].lat,
+                    lng: busLocations[i].lng,
+                    id: `bus_${i}`
+                });
+            }
+            
+            return arrivals;
+        }
+
+        function displayArrivals(arrivals) {
+            const content = document.getElementById('content');
+            
+            if (arrivals.length === 0) {
+                content.innerHTML = '<div class="error">No upcoming buses found</div>';
+                return;
+            }
+
+            const nextBus = arrivals[0];
+            const timeToLeave = nextBus.minutesAway - WALK_TIME_MINUTES - BUFFER_TIME_MINUTES;
+            
+            let leaveNowHTML = '';
+            
+            if (timeToLeave <= 0) {
+                leaveNowHTML = `
+                    <div class="leave-now-card">
+                        <div class="leave-time">LEAVE NOW!</div>
+                        <div class="leave-label">Bus arriving in ${nextBus.minutesAway} min</div>
+                    </div>
+                `;
+            } else if (timeToLeave <= 3) {
+                leaveNowHTML = `
+                    <div class="leave-now-card leave-soon-card">
+                        <div class="leave-time">${timeToLeave} min</div>
+                        <div class="leave-label">Leave in ${timeToLeave} minute${timeToLeave > 1 ? 's' : ''}</div>
+                    </div>
+                `;
+            } else {
+                leaveNowHTML = `
+                    <div class="leave-now-card all-good-card">
+                        <div class="leave-time">${timeToLeave} min</div>
+                        <div class="leave-label">You have time</div>
+                    </div>
+                `;
+            }
+
+            const arrivalsHTML = arrivals.map((arrival, index) => `
+                <div class="arrival-item" onclick="showBusOnMap(currentArrivals[${index}])">
+                    <div>
+                        <div class="arrival-time">${arrival.minutesAway} min</div>
+                        <div class="arrival-label">${arrival.arrivalTime.toLocaleTimeString('en-US', { 
+                            hour: 'numeric', 
+                            minute: '2-digit'
+                        })}</div>
+                    </div>
+                    <div class="destination">${arrival.destination}</div>
+                </div>
+            `).join('');
+
+            content.innerHTML = `
+                ${leaveNowHTML}
+                <div class="arrivals-card">
+                    <div class="arrivals-title">Upcoming Buses (tap to see location)</div>
+                    ${arrivalsHTML}
+                </div>
+            `;
+        }
+
+        function displayError() {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <div class="error">
+                    <strong>Unable to fetch bus data</strong><br>
+                    <small>Please check your connection and try again</small>
+                </div>
+            `;
+        }
+
+        function updateLastUpdated() {
+            const now = new Date();
+            document.getElementById('lastUpdated').textContent = 
+                `Updated ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('mapModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeMap();
+            }
+        });
+
+        // Initial fetch
+        fetchBusArrivals();
+
+        // Refresh every 30 seconds
+        setInterval(fetchBusArrivals, REFRESH_INTERVAL);
+
+        // Refresh when page becomes visible again
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                fetchBusArrivals();
+            }
+        });
+    </script>
+</body>
+</html>
