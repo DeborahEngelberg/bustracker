@@ -407,7 +407,8 @@
         // Get API key from localStorage or prompt user
         let MTA_API_KEY = localStorage.getItem('mta_api_key') || '';
         
-        const STOP_ID = '400561'; // 2nd Ave & E 96th St
+        // M15 has two stop IDs at this location (northbound and southbound)
+        const STOP_IDS = ['405516', '903363']; // 2nd Ave & E 96th St
         const STOP_LAT = 40.7851;
         const STOP_LNG = -73.9469;
         const LINE_REF = 'MTA NYCT_M15'; // M15 route reference
@@ -541,17 +542,27 @@
                     return;
                 }
 
-                // Fetch real-time arrival data
-                const stopMonitoringUrl = `https://bustime.mta.info/api/siri/stop-monitoring.json?key=${MTA_API_KEY}&OperatorRef=MTA&MonitoringRef=${STOP_ID}&LineRef=${LINE_REF}`;
+                // Fetch data from both stop IDs and combine results
+                const allArrivals = [];
                 
-                const response = await fetch(stopMonitoringUrl);
-                const data = await response.json();
+                for (const stopId of STOP_IDS) {
+                    const stopMonitoringUrl = `https://bustime.mta.info/api/siri/stop-monitoring.json?key=${MTA_API_KEY}&OperatorRef=MTA&MonitoringRef=${stopId}&LineRef=${LINE_REF}`;
+                    
+                    try {
+                        const response = await fetch(stopMonitoringUrl);
+                        const data = await response.json();
+                        const arrivals = parseArrivals(data);
+                        allArrivals.push(...arrivals);
+                    } catch (error) {
+                        console.error(`Error fetching from stop ${stopId}:`, error);
+                    }
+                }
                 
-                const arrivals = parseArrivals(data);
-                
-                if (arrivals.length > 0) {
-                    currentArrivals = arrivals;
-                    displayArrivals(arrivals);
+                if (allArrivals.length > 0) {
+                    // Sort by arrival time and remove duplicates
+                    allArrivals.sort((a, b) => a.minutesAway - b.minutesAway);
+                    currentArrivals = allArrivals.slice(0, 5); // Top 5 buses
+                    displayArrivals(currentArrivals);
                 } else {
                     // Fallback to mock data if no real data
                     const mockArrivals = generateMockArrivals();
